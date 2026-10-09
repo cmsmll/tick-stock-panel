@@ -38,6 +38,7 @@ export function Financials() {
   // 矩阵未加载时回退 TickFlow 套餐视角 + 后端可用状态
   const hasFinancial = routeCapUsable(matrix, 'financial')
     ?? (caps?.capabilities?.['financial'] != null || status?.available === true)
+  const hasDividends = routeCapUsable(matrix, 'dividends') === true
   const syncMut = useFinancialSync()
   // 同步进行中 = 服务端真值(status.syncing)或本地乐观态(请求已发出待确认)。
   // 乐观窗口:点击后到 invalidate 触发的 refetch 返回之间,status.syncing 暂为 false,
@@ -65,10 +66,10 @@ export function Financials() {
     rememberStock(symbol, name)
   }
 
-  if (!hasFinancial) {
+  if (!hasFinancial && !hasDividends) {
     return (
       <>
-        <PageHeader title="财务分析" subtitle="利润表 / 资负表 / 现金流 / 关键指标 / 股本 / AI分析" />
+        <PageHeader title="财务分析" subtitle="利润表 / 资负表 / 现金流 / 关键指标 / 股本 / 分红派息 / AI分析" />
         <div className="px-8 py-10">
           <div className="mx-auto max-w-md rounded-card border border-warning/30 bg-warning/[0.04] p-8 text-center">
             <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-warning/10">
@@ -171,7 +172,7 @@ export function Financials() {
     <>
       <PageHeader
         title="财务分析"
-        subtitle="利润表 / 资负表 / 现金流 / 关键指标 / 股本 / AI分析"
+        subtitle="利润表 / 资负表 / 现金流 / 关键指标 / 股本 / 分红派息 / AI分析"
         right={
           <div className="flex items-center gap-2">
             <LastStockChip stock={lastStock} onSelect={pick} />
@@ -188,7 +189,7 @@ export function Financials() {
             <button
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-btn bg-gradient-to-r from-accent/25 to-accent/10 border border-accent/30 text-accent text-xs font-medium hover:from-accent/35 hover:to-accent/20 transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed"
               onClick={() => handleSync('all')}
-              disabled={syncing}
+              disabled={syncing || !hasFinancial}
               title={syncing ? '正在同步，请稍候…' : '同步全部财务表'}
             >
               {syncing
@@ -250,7 +251,7 @@ export function Financials() {
                       <button
                         className="text-muted hover:text-accent transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                         onClick={() => handleSync(key)}
-                        disabled={syncing}
+                        disabled={syncing || !hasFinancial}
                         title={syncing ? '正在同步…' : `更新${label}`}
                       >
                         {syncing
@@ -282,7 +283,7 @@ export function Financials() {
           <div className="flex items-center justify-center py-16">
             <Loader2 className="h-5 w-5 animate-spin text-muted" />
           </div>
-        ) : !available ? (
+        ) : !available && !hasDividends ? (
           <div className="rounded-card border border-dashed border-border bg-surface px-6 py-14 text-center">
             <Database className="mx-auto h-8 w-8 text-muted" />
             <div className="mt-3 text-sm text-secondary">暂无财务数据</div>
@@ -325,7 +326,7 @@ export function Financials() {
             {/* 个股详情 / 空引导 */}
             <div className="pb-4">
               {selected ? (
-                <StockFinancialDetail symbol={selected.symbol} name={selected.name} />
+                <StockFinancialDetail symbol={selected.symbol} name={selected.name} financialAvailable={hasFinancial} />
               ) : (
                 <EmptyState
                   icon={Search}

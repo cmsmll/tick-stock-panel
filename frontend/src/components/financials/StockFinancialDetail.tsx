@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { DividendHistory } from './DividendHistory'
 import { motion, AnimatePresence } from 'framer-motion'
 import { CalendarDays, TrendingUp, FileText, Wallet, Activity, Sparkles, AlertTriangle, Loader2, ChartPie } from 'lucide-react'
 import {
@@ -16,16 +17,18 @@ import { toast } from '@/components/Toast'
 interface Props {
   symbol: string
   name: string
+  financialAvailable?: boolean
 }
 
 type TabKey = 'metrics' | 'income' | 'balance_sheet' | 'cash_flow' | 'shares'
 
-const TABS: { key: TabKey; label: string; icon: typeof TrendingUp }[] = [
+const TABS: { key: TabKey | 'dividends'; label: string; icon: typeof TrendingUp }[] = [
   { key: 'metrics', label: '核心指标', icon: TrendingUp },
   { key: 'income', label: '利润表', icon: FileText },
   { key: 'balance_sheet', label: '资产负债表', icon: Wallet },
   { key: 'cash_flow', label: '现金流量表', icon: Activity },
   { key: 'shares', label: '股本', icon: ChartPie },
+  { key: 'dividends', label: '分红派息', icon: Wallet },
 ]
 
 // 字段定义:键 → (中文名, 格式化类型)
@@ -119,8 +122,8 @@ function formatValue(v: number | null | undefined, fmt: FmtType): string {
   }
 }
 
-export function StockFinancialDetail({ symbol, name }: Props) {
-  const [tab, setTab] = useState<TabKey>('metrics')
+export function StockFinancialDetail({ symbol, name, financialAvailable = true }: Props) {
+  const [tab, setTab] = useState<TabKey | 'dividends'>(financialAvailable ? 'metrics' : 'dividends')
   // AI 分析:点击时检查历史,若已有同标的报告则二次确认
   const [checking, setChecking] = useState(false)
   const [confirmReport, setConfirmReport] = useState<{ id: string; created_at: string; focus: string } | null>(null)
@@ -150,11 +153,11 @@ export function StockFinancialDetail({ symbol, name }: Props) {
     if (r.error) toast(r.error, 'error')
   }
 
-  const metrics = useFinancialMetrics(symbol)
-  const income = useFinancialIncome(symbol)
-  const balance = useFinancialBalanceSheet(symbol)
-  const cashFlow = useFinancialCashFlow(symbol)
-  const shares = useFinancialShares(symbol)
+  const metrics = useFinancialMetrics(financialAvailable ? symbol : undefined)
+  const income = useFinancialIncome(financialAvailable ? symbol : undefined)
+  const balance = useFinancialBalanceSheet(financialAvailable ? symbol : undefined)
+  const cashFlow = useFinancialCashFlow(financialAvailable ? symbol : undefined)
+  const shares = useFinancialShares(financialAvailable ? symbol : undefined)
 
   const queryMap = {
     metrics: metrics,
@@ -164,12 +167,13 @@ export function StockFinancialDetail({ symbol, name }: Props) {
     shares: shares,
   } as const
 
-  const current = queryMap[tab]
+  const activeTab = financialAvailable ? tab : 'dividends'
+  const current = queryMap[activeTab === 'dividends' ? 'metrics' : activeTab]
   // 按 period_end 降序(最新在前);同步默认 latest_only,通常只有1期
   const rows = (current.data?.data ?? []).slice().sort((a, b) =>
     (b.period_end ?? '').localeCompare(a.period_end ?? '')
   )
-  const fieldDefs = FIELD_DEFS[tab]
+  const fieldDefs = FIELD_DEFS[activeTab === 'dividends' ? 'metrics' : activeTab]
 
   // 头部报告期信息取最新一期(优先用当前 tab,兜底用 metrics)
   const latestPeriod = rows[0]?.period_end ?? metrics.data?.data?.[0]?.period_end ?? null
@@ -186,14 +190,14 @@ export function StockFinancialDetail({ symbol, name }: Props) {
         <div className="flex items-center gap-2 ml-auto">
           <button
             onClick={handleAiClick}
-            disabled={checking}
+            disabled={checking || !financialAvailable}
             className="inline-flex items-center gap-1 px-2.5 py-1 rounded-btn text-[11px] font-medium border border-purple-400/30 bg-purple-400/10 text-purple-300 hover:bg-purple-400/20 hover:border-purple-400/40 transition-all shrink-0 disabled:opacity-50"
             title="AI 财务分析"
           >
             {checking ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
             AI 财务分析
           </button>
-          {latestPeriod && (
+          {activeTab !== 'dividends' && latestPeriod && (
             <div className="flex items-center gap-1.5 text-xs text-secondary">
               <CalendarDays className="h-3.5 w-3.5" />
               <span>报告期 <span className="font-mono">{latestPeriod}</span></span>
@@ -207,14 +211,14 @@ export function StockFinancialDetail({ symbol, name }: Props) {
 
       {/* 标签页 */}
       <div className="flex items-center gap-1 px-3 pt-2 border-b border-border/60 overflow-x-auto">
-        {TABS.map(t => {
+        {TABS.filter(t => financialAvailable || t.key === 'dividends').map(t => {
           const Icon = t.icon
-          const isActive = tab === t.key
+          const isActive = activeTab === t.key
           return (
             <button
               key={t.key}
               onClick={() => setTab(t.key)}
-              className={`inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-b-2 -mb-px transition-colors ${
+              className={`inline-flex shrink-0 whitespace-nowrap items-center gap-1.5 px-3 py-2 text-xs font-medium border-b-2 -mb-px transition-colors ${
                 isActive
                   ? 'border-accent text-accent'
                   : 'border-transparent text-muted hover:text-secondary'
@@ -229,7 +233,7 @@ export function StockFinancialDetail({ symbol, name }: Props) {
 
       {/* 表格内容 */}
       <div className="p-4">
-        {current.isLoading ? (
+        {activeTab === 'dividends' ? <DividendHistory symbol={symbol} /> : current.isLoading ? (
           <div className="space-y-2">
             {Array.from({ length: 6 }).map((_, i) => (
               <div key={i} className="flex justify-between">

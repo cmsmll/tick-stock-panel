@@ -1888,6 +1888,7 @@ export type ProviderField =
   | 'depth5_data_provider'
   | 'realtime_data_provider'
   | 'financial_data_provider'
+  | 'dividend_data_provider'
 
 /** 能力路由矩阵中的一个候选源 (candidates 只含当前确实可提供该能力的源) */
 export interface CapabilityCandidate {
@@ -1906,7 +1907,7 @@ export interface CapabilityRoute {
   desc: string
   field: ProviderField | null                    // null = 不可路由能力 (仅 TickFlow 提供)
   default: string
-  tf_tier: string                                  // TickFlow 所需最低订阅档位
+  tf_tier: string | null                                  // TickFlow 所需最低订阅档位
   tf_available: boolean                            // 当前 TickFlow 档位是否提供该能力
   usable: boolean                                  // 生效源当前能否真正提供 (各页能力门控的统一判定)
   current: string                                  // 原始偏好值
@@ -2021,6 +2022,7 @@ export interface Preferences {
   depth5_data_provider?: string
   realtime_data_provider?: string
   financial_data_provider?: string
+  dividend_data_provider?: string
   data_source_job_timeout_s: number
   data_source_long_job_timeout_s: number
   minute_batch_compress: boolean
@@ -3417,6 +3419,9 @@ export const api = {
     ),
 
   // ===== Financials =====
+  dividendHistory: (symbol: string) =>
+    request<{ provider: string; data: DividendRecord[] }>(`/api/financials/dividends?symbol=${encodeURIComponent(symbol)}`),
+
   financialStatus: () =>
     request<FinancialStatus>('/api/financials/status'),
 
@@ -4327,4 +4332,12 @@ export interface AnalysisMenu {
   created_at?: string | null
   updated_at?: string | null
   builtin?: boolean
+}
+
+export interface DividendRecord {
+  symbol: string
+  ex_date: string
+  cash_per_share: number
+  bonus_per_share: number
+  currency: string
 }

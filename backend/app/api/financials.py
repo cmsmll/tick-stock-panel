@@ -4,7 +4,7 @@ from __future__ import annotations
 import logging
 
 import polars as pl
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
@@ -69,6 +69,19 @@ def financial_status(request: Request):
         # 且刷新页面后仍能正确反映服务端状态。
         "syncing": bool(fs and fs.is_syncing),
     }
+
+
+@router.get("/dividends")
+def dividend_history(symbol: str = Query(pattern=r"^\d{6}\.(SH|SZ|BJ)$")):
+    from app.services.dividends import DividendUnavailableError, get_dividends
+
+    try:
+        return get_dividends(symbol)
+    except DividendUnavailableError as exc:
+        raise HTTPException(503, str(exc)) from exc
+    except Exception as exc:
+        logger.warning("分红派息查询失败: %s (%s)", symbol, type(exc).__name__)
+        raise HTTPException(502, "分红派息查询失败，请稍后重试") from exc
 
 
 @router.get("/metrics")

@@ -48,7 +48,7 @@ from app.plugins.fuyao.client import FuyaoClient, FuyaoError
 logger = logging.getLogger(__name__)
 
 # 只声明真实提供的数据集; 其余数据集 provider_has_dataset 返回 False → 回退 tickflow
-_DATASETS = ("realtime", "daily", "adj_factor", "financial")
+_DATASETS = ("realtime", "daily", "adj_factor", "financial", "dividends")
 
 API_KEY_ENV = "FUYAO_API_KEY"
 SECRETS_FIELD = "fuyao_api_key"  # UI 配置的 Key 存 secrets.json, 优先级高于 .env
@@ -904,6 +904,21 @@ class FuyaoProvider:
         "inventory_turnover_ratio": "inventory_turnover",
     }
 
+    def get_dividends(self, symbol: str) -> list[dict]:
+        from app.data_providers.dividends import DividendRecord
+
+        records = []
+        for row in self._get_client().dividend_events(symbol):
+            record = DividendRecord(
+                symbol=symbol,
+                ex_date=datetime.fromtimestamp((int(row["ex_date_ms"]) + _SH_MS) / 1000, UTC).date(),
+                cash_per_share=row["dividend_per_share"],
+                bonus_per_share=row["per_share_bonus"],
+                currency="CNY",
+            )
+            records.append(record.model_dump(mode="json"))
+        return sorted(records, key=lambda row: row["ex_date"], reverse=True)
+
     def get_financials(
         self,
         table: str,
@@ -1145,6 +1160,15 @@ class FuyaoProvider:
 
     # ---- 测试(设置页试拉) ----
     def test_dataset(self, dataset: str, symbols: list[str] | None = None) -> dict:
+        if dataset == "dividends":
+            symbol = (symbols or ["600519.SH"])[0]
+            try:
+                rows = self.get_dividends(symbol)
+            except (FuyaoError, ValueError, TypeError, KeyError) as exc:
+                return {"provider": self.name, "dataset": dataset, "rows": 0, "error": str(exc)}
+            return {"provider": self.name, "dataset": dataset, "rows": len(rows),
+                    "columns": ["symbol", "ex_date", "cash_per_share", "bonus_per_share", "currency"],
+                    "preview": rows[:5]}
         if dataset in ("daily", "adj_factor"):
             syms = [s for s in (symbols or [])][:3] or ["000001.SZ"]
             try:

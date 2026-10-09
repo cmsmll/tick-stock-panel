@@ -8,6 +8,7 @@
 // ===== Query Key 工厂 =====
 
 export const QK = {
+  dividends: (symbol: string, provider: string, version: number) => ['dividends', symbol, provider, version] as const,
   // 全局 / 共享 (Layout 预取)
   capabilities:   ['capabilities'] as const,
   settings:       ['settings'] as const,

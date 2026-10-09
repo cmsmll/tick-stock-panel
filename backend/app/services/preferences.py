@@ -301,6 +301,11 @@ def get_realtime_data_provider() -> str:
     return provider if provider in _allowed_data_providers() else "tickflow"
 
 
+def get_dividend_provider() -> str:
+    provider = str(load().get("dividend_data_provider", "fuyao") or "fuyao").lower()
+    return provider if provider != "tickflow" and provider in _allowed_data_providers() else "fuyao"
+
+
 def get_financial_provider() -> str:
     provider = str(load().get("financial_data_provider", "tickflow") or "tickflow").lower()
     return provider if provider in _allowed_data_providers() else "tickflow"

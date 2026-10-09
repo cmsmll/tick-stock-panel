@@ -161,6 +161,15 @@ class FuyaoClient:
         rows = data.get("item")
         return rows if isinstance(rows, list) else []
 
+    def dividend_events(self, thscode: str) -> list[dict]:
+        data = self._get("/api/a-share/corporate-actions/adjustment-factors", {"thscode": thscode})
+        if data.get("thscode", thscode) != thscode:
+            raise FuyaoError("分红派息响应标的不一致")
+        rows = data.get("item")
+        if not isinstance(rows, list):
+            raise FuyaoError("分红派息响应缺少事件列表")
+        return rows
+
     # ---- 财务 ----
     # 端点均单标的(thscode 不接受逗号)。取数模式二选一: limit=最近N期 或 start/end 区间,
     # 这里只用 limit。period=quarterly 覆盖每个季度末(含年报期), 与项目"各报告期累积"口径一致。

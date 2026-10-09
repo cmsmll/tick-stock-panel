@@ -333,3 +333,23 @@ uv run --extra dev python -m ruff check app/plugins/<your_plugin>/ tests/test_<y
 
 注册后, 插件和用户 YAML 自定义源走**完全相同的路由路径**(services 层的
 `provider_has_dataset` / `get_provider` 调用), 无需额外集成代码。
+
+
+### 分红派息数据集（dividends）
+
+插件可在 `plugin.yaml` 和 provider 的 `config.datasets` 中声明 `dividends`，实现
+`get_dividends(symbol: str) -> list[dict]`。独立偏好为 `dividend_data_provider`，默认
+`fuyao`；TickFlow 不提供此能力，不作为候选或失败回退源。此数据集当前支持 Python
+插件，不支持 YAML HTTP 数据源声明。
+
+每条记录必须包含 `symbol`、`ex_date`（北京时间日期 YYYY-MM-DD）、
+`cash_per_share`（当次分配税前每股现金金额，非负有限数）、`bonus_per_share`
+（每股送转比例，0.4 表示每10股送转4股，非负有限数）、`currency`（如 CNY）。
+上游空列表表示无事件，缺字段、无权限和请求失败必须抛错，不可返回空列表掩盖失败。
+金额不得按最新股数重写；前端历史表展示当次分配口径。上游只提供送转合计时，不推断
+送股与转增的拆分，也不以除权除息日代替登记日、派息日。
+
+`GET /api/financials/dividends?symbol=601919.SH` 按独立路由查询，返回
+`{provider, data}`（事件按日期降序），无能力为503，上游异常为502。
+打开分红标签页时按股查询，前端以股票、提供方和能力配置版本隔离五分钟缓存；
+用户可手动刷新。不修改财务报表、除权因子落盘与相关缓存，不参加全部财务同步。

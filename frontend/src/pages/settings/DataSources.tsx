@@ -53,6 +53,7 @@ const DATASET_LABEL: Record<string, string> = {
   depth5: '五档',
   financial: '财务',
   full_minute: '全量分钟',
+  dividends: '分红派息',
 }
 
 /** 能力图标 (纯展示; 能力清单本身由后端注册表驱动) */
@@ -154,6 +155,7 @@ const DEFAULT_ROUTING: Record<ProviderField, string> = {
   depth5_data_provider: 'tickflow',
   realtime_data_provider: 'tickflow',
   financial_data_provider: 'tickflow',
+  dividend_data_provider: 'fuyao',
 }
 
 /** 单个能力卡: 当前生效提供方 + 候选切换标签。
@@ -560,7 +562,7 @@ function CapabilityChips({ caps, servingSet, isTickFlow }: {
         const title = servingNow
           ? `正在提供「${cap.label}」`
           : locked
-            ? `TickFlow 需 ${tierReqText(cap.tf_tier)} · 当前档位未解锁`
+            ? `TickFlow 需 ${tierReqText(cap.tf_tier ?? 'none')} · 当前档位未解锁`
             : `已适配「${cap.label}」`
         return (
           <span
@@ -617,6 +619,7 @@ export function SettingsDataSourcesPanel({ highlight }: { highlight?: string } =
     realtime: prefs.data?.realtime_data_provider || 'tickflow',
     depth5: prefs.data?.depth5_data_provider || 'tickflow',
     financial: prefs.data?.financial_data_provider || 'tickflow',
+    dividends: prefs.data?.dividend_data_provider || 'fuyao',
   }
   const servingDatasets = (name: string) =>
     Object.entries(effProvider).filter(([, v]) => v === name).map(([k]) => k)
@@ -774,7 +777,7 @@ export function SettingsDataSourcesPanel({ highlight }: { highlight?: string } =
             const declared = new Set(item.datasets)
             // TickFlow 展示注册表全量能力 (含档位锁定态); 其余源按声明过滤
             const chipCaps = isTf
-              ? matrixCaps
+              ? matrixCaps.filter(c => c.tf_tier !== null)
               : matrixCaps.filter(c => declared.has(c.id))
             return (
               <div
@@ -1175,7 +1178,7 @@ function TickFlowDetail({ active, matrix }: { active: boolean; matrix?: Capabili
           </div>
           <p className="text-xs text-secondary mt-1.5 leading-relaxed">
             默认数据源,每个能力所需订阅档位见下表 — 当前档位未解锁的能力不会出现在上方「能力路由」的选项里。
-            未单独设置的能力默认由 TickFlow 提供;也可在数据源区接入插件替换任意能力。
+            分红派息默认由 fuyao 提供,其他能力默认由 TickFlow 提供;也可在数据源区接入插件替换任意能力。
           </p>
         </div>
       </div>
@@ -1189,7 +1192,7 @@ function TickFlowDetail({ active, matrix }: { active: boolean; matrix?: Capabili
           {/* 能力档位表: 各能力所需档位 + 当前档位可用性 */}
           {caps.length > 0 && (
             <div className="rounded-lg border border-border/60 bg-elevated/20 divide-y divide-border/50">
-              {caps.map(cap => {
+              {caps.filter(cap => cap.tf_tier !== null).map(cap => {
                 const Icon = CAP_ICON[cap.id] ?? Database
                 return (
                   <div key={cap.id} className="flex items-center gap-2.5 px-3 py-1.5">
@@ -1198,7 +1201,7 @@ function TickFlowDetail({ active, matrix }: { active: boolean; matrix?: Capabili
                       <span className="text-xs text-foreground">{cap.label}</span>
                       <span className="ml-1.5 text-[10px] text-muted/60">{cap.desc}</span>
                     </div>
-                    <TierReqChip tier={cap.tf_tier} currentLabel={tier} />
+                    <TierReqChip tier={cap.tf_tier ?? 'none'} currentLabel={tier} />
                     {cap.tf_available ? (
                       <span className="w-[52px] text-right text-[10px] text-bear inline-flex items-center justify-end gap-0.5 shrink-0">
                         <Check className="h-2.5 w-2.5" />可用

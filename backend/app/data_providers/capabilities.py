@@ -86,6 +86,14 @@ CAPABILITY_REGISTRY: list[dict] = [
         # TickFlow 侧需 Expert 档; 插件/自定义源声明 full_minute 数据集即可提供
         # (插件实现 get_intraday_batch / 可选 get_intraday_latest, YAML 仅修复轮)
     },
+    {
+        "id": "dividends",
+        "label": "分红派息",
+        "desc": "历史现金分红与送转记录",
+        "field": "dividend_data_provider",
+        "default": "fuyao",
+        "tf_tier": None,
+    },
 ]
 
 _TICKFLOW_CANDIDATE = {
@@ -163,7 +171,7 @@ def build_capability_matrix(current: dict[str, str], tickflow_tier: str = "none"
     for cap in CAPABILITY_REGISTRY:
         # field=None → 不可路由能力 (仅 TickFlow 提供, 无路由偏好), 生效源恒为默认
         effective = current.get(cap["field"], cap["default"]) if cap["field"] else cap["default"]
-        tf_available = tier_rank >= _TIER_RANK[cap["tf_tier"]]
+        tf_available = cap["tf_tier"] is not None and tier_rank >= _TIER_RANK[cap["tf_tier"]]
         candidates: list[dict] = []
         pending: list[dict] = []
         if tf_available:
