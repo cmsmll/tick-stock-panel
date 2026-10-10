@@ -99,6 +99,28 @@ class StockSDKProvider:
                 on_chunk_done(i + 1, len(chunks))
         return pl.concat(frames, how="diagonal_relaxed") if frames else pl.DataFrame()
 
+    def get_chart_daily(self, symbol, start_time, end_time, asset_type, adjust):
+        if asset_type != "stock":
+            raise NotImplementedError("stock-sdk 看板行情目前仅支持 A 股")
+        result = bridge.run_job({
+            "op": "daily", "symbols": [symbol], "strict": True,
+            "adjust": {"none": "none", "forward": "qfq", "backward": "hfq"}[adjust],
+            "start": _yyyymmdd(start_time), "end": _yyyymmdd(end_time),
+        }, timeout=180)
+        return normalize_daily((result.get("rows") or {}).get(symbol, []),
+                               default_symbol=symbol, source=self.name)
+
+    def get_chart_minute(self, symbol, start_time, end_time, asset_type, adjust):
+        if adjust != "none":
+            raise NotImplementedError("stock-sdk 的 1 分钟行情不支持复权")
+        if asset_type != "stock":
+            raise NotImplementedError("stock-sdk 看板分时目前仅支持 A 股")
+        result = bridge.run_job({
+            "op": "minute", "symbols": [symbol], "period": "1", "strict": True,
+            "start": _yyyymmdd(start_time), "end": _yyyymmdd(end_time),
+        }, timeout=180)
+        return self._minute_df((result.get("rows") or {}).get(symbol, []), symbol)
+
     # ---- adj_factor ----
     def get_adj_factors(
         self,

@@ -14,6 +14,27 @@ from typing import Literal, Protocol
 import polars as pl
 
 AssetType = Literal["stock", "index", "etf"]
+PriceAdjustment = Literal["none", "forward", "backward"]
+
+
+class ChartPriceProvider(Protocol):
+    """可选看板协议；不改变 get_daily/get_minute 的原始价同步契约。
+
+    必须直接请求上游指定口径，不得本地应用因子或静默改口径。
+    不支持的资产/模式抛 NotImplementedError，取数失败抛异常，真实空数据返回空表。
+    起止时间为北京时间墙钟、含两端；日线返回标准 date 列，分钟返回 datetime 列。
+    OHLC 为请求口径，volume 为手，amount 为真实成交额（元），不得随复权缩放。
+    """
+
+    def get_chart_daily(
+        self, symbol: str, start_time: datetime, end_time: datetime,
+        asset_type: AssetType, adjust: PriceAdjustment,
+    ) -> pl.DataFrame: ...
+
+    def get_chart_minute(
+        self, symbol: str, start_time: datetime, end_time: datetime,
+        asset_type: AssetType, adjust: PriceAdjustment,
+    ) -> pl.DataFrame: ...
 
 
 @dataclass(frozen=True)

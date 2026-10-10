@@ -80,12 +80,14 @@ export const QK = {
   analysisMenu:         (id: string) => ['analysis-menu', id] as const,
 
   // Kline
-  kline:                (symbol: string, start: string, end: string, extColumns?: string) =>
-                           ['kline', symbol, start, end, extColumns ?? ''] as const,
+  kline:                (symbol: string, start: string, end: string, extColumns?: string, adjust?: string) =>
+                           adjust ? ['kline', symbol, start, end, extColumns ?? '', adjust] as const
+                             : ['kline', symbol, start, end, extColumns ?? ''] as const,
   klineLatest:          (symbol: string) => ['kline-latest', symbol] as const,
   stockLevels:          (symbol: string, days?: number) => ['stock-levels', symbol, days ?? 120] as const,
-  klineMinute:          (symbol: string, date: string) =>
-                             ['kline-minute', symbol, date] as const,
+  klineMinute:          (symbol: string, date: string, adjust?: string) =>
+                             adjust ? ['kline-minute', symbol, date, adjust] as const
+                               : ['kline-minute', symbol, date] as const,
   klineMinuteRange:     (symbol: string, days: number) =>
                              ['kline-minute-range', symbol, days] as const,
   indexDaily:           (symbol: string, start: string, end: string) =>

@@ -174,6 +174,11 @@ export function useQuoteStream(
                 const start = String(query.queryKey[2] ?? '')
                 const end = String(query.queryKey[3] ?? '')
                 if (latestDate < start || latestDate > end) continue
+                // 展示复权数据须按选定模式重算指标，不能混入默认前复权实时行。
+                if (query.queryKey[5]) {
+                  void qc.invalidateQueries({ queryKey: query.queryKey, exact: true })
+                  continue
+                }
                 qc.setQueryData<KlineDailyResponse>(
                   query.queryKey,
                   current => mergeLatestKlineRow(current, latest),

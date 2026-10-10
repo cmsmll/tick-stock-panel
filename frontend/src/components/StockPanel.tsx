@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { X } from 'lucide-react'
-import { type KlineRow, type FinancialMetricRecord } from '@/lib/api'
+import { type KlineRow, type FinancialMetricRecord, type PriceAdjustment } from '@/lib/api'
 import { klineDailyQueryOptions, klineMinuteQueryOptions, klineMinuteRangeQueryOptions, DEFAULT_INTRADAY_DAYS } from '@/lib/kline'
 import { StockInfoBar } from '@/components/StockInfoBar'
 import { StockDailyKChart, getDefaultRange, toOHLC } from '@/components/StockDailyKChart'
@@ -84,6 +84,11 @@ export function StockPanel({
   addedDate,
 }: Props) {
   const [linkedPrice, setLinkedPrice] = useState<number | null>(null)
+  const [adjustment, setAdjustment] = useState<PriceAdjustment>('none')
+  const handleAdjustmentChange = (mode: PriceAdjustment) => {
+    setAdjustment(mode)
+    setLinkedPrice(null)
+  }
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [intradayDismissed, setIntradayDismissed] = useState(false)
   // 信息条指标配置提升到此层：同时供 StockInfoBar 渲染与 StockDailyKChart 请求 ext 数据
@@ -116,8 +121,13 @@ export function StockPanel({
   // 弹窗整体高度在切换瞬间不塌陷 (不抖动)。
   const kline = useQuery({ ...klineDailyQueryOptions(symbol, dateRange, extColumns), enabled: !!symbol })
   const rawRows: KlineRow[] = kline.data?.rows ?? []
+  const displayKline = useQuery({
+    ...klineDailyQueryOptions(symbol, dateRange, extColumns, adjustment),
+    enabled: !!symbol && !infoBarOnly,
+  })
+  const displayRows = displayKline.data?.rows ?? []
   // OHLC 视图用于日期选中/昨收价推导 (与图表侧同口径)
-  const rows = useMemo(() => toOHLC(rawRows), [rawRows])
+  const rows = useMemo(() => toOHLC(displayRows), [displayRows])
   const stockInfo = kline.data?.stock_info
   const name = kline.data?.name
 
@@ -176,6 +186,7 @@ export function StockPanel({
 
   const selectedIdx = selectedDate ? rows.findIndex(r => r.date === selectedDate) : -1
   const selectedRow = selectedIdx >= 0 ? rows[selectedIdx] : undefined
+  const selectedDisplayRow = displayRows.find(row => String(row.date).slice(0, 10) === selectedDate)
   const prevClose = selectedIdx > 0
     ? rows[selectedIdx - 1].close
     : rows.length >= 2
@@ -207,6 +218,8 @@ export function StockPanel({
       {infoBarOnly ? null : (
       <div className="flex gap-3 items-start">
         <StockDailyKChart
+          adjustment={adjustment}
+          onAdjustmentChange={handleAdjustmentChange}
           symbol={symbol}
           height={height}
           className={`${dailyKlineFlex} min-w-0`}
@@ -224,7 +237,7 @@ export function StockPanel({
           addedDate={addedDate}
         />
 
-        {showIntraday && selectedDate && !intradayDismissed && (
+        {showIntraday && selectedDate && selectedDisplayRow && !intradayDismissed && (
           <div className="relative flex-1 min-w-0 border-l border-border pl-3">
             <button
               onClick={() => setIntradayDismissed(true)}
@@ -235,15 +248,16 @@ export function StockPanel({
               <X className="h-3 w-3" />
             </button>
             <StockIntradayChart
+              adjustment={adjustment}
               symbol={symbol}
               date={selectedDate}
               height={height}
               prevClose={prevClose}
               dailySummary={selectedRow}
               onPriceHover={setLinkedPrice}
-              onPriceDoubleClick={onPriceDoubleClick}
+              onPriceDoubleClick={adjustment === 'none' ? onPriceDoubleClick : undefined}
               currentPrice={rows[rows.length - 1]?.close}
-              priceLines={priceLines}
+              priceLines={adjustment === 'none' ? priceLines : undefined}
               refetchIntervalMs={refetchIntervalMs}
             />
           </div>

@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { type KlineRow } from '@/lib/api'
+import { type KlineRow, type PriceAdjustment } from '@/lib/api'
 import { klineDailyQueryOptions } from '@/lib/kline'
 import { storage } from '@/lib/storage'
 import {
@@ -26,6 +26,8 @@ function normalizeVolumeCompare(config: VolumeCompareConfig): VolumeCompareConfi
 }
 
 interface Props {
+  adjustment?: PriceAdjustment
+  onAdjustmentChange?: (mode: PriceAdjustment) => void
   symbol: string
   height?: number
   className?: string
@@ -147,7 +149,11 @@ export function StockDailyKChart({
   onPriceDoubleClick,
   extColumns,
   addedDate,
+  adjustment: controlledAdjustment,
+  onAdjustmentChange,
 }: Props) {
+  const [localAdjustment, setLocalAdjustment] = useState<PriceAdjustment>('none')
+  const adjustment = controlledAdjustment ?? localAdjustment
   const [activeIndicators, setActiveIndicators] = useState<string[]>(['vol'])
   const [showMarkers, setShowMarkers] = useState(true)
   // 加入自选日标注（与「异动」标记相互独立）
@@ -157,8 +163,8 @@ export function StockDailyKChart({
   )
   const dateRange = externalDateRange ?? getDefaultRange()
 
-  // 查询配置统一来自 klineDailyQueryOptions, 与 StockPanel 信息条/邻近预取共享同一 cache key (只发一次请求)
-  const kline = useQuery({ ...klineDailyQueryOptions(symbol, dateRange, extColumns), enabled: !!symbol })
+  // 与 StockPanel 的图表数据共享缓存；信息条仍读取原行情口径。
+  const kline = useQuery({ ...klineDailyQueryOptions(symbol, dateRange, extColumns, adjustment), enabled: !!symbol })
 
   const rows = useMemo(() => toOHLC(kline.data?.rows ?? []), [kline.data?.rows])
   const stockInfo = kline.data?.stock_info
@@ -192,8 +198,8 @@ export function StockDailyKChart({
 
   return (
     <div className={className} style={{ minHeight: chartHeight }}>
-      {showIndicatorControls && rows.length > 0 && (
-        <div className="flex items-center gap-1.5 px-1 pb-0.5">
+      {showIndicatorControls && (
+        <div className="flex flex-wrap items-center gap-1.5 px-1 pb-0.5">
           {SUB_CHARTS.map(ind => (
             <ChartPill
               key={ind.key}
@@ -243,6 +249,20 @@ export function StockDailyKChart({
               </select>
             </div>
           )}
+          <label className="flex h-5 items-center gap-1 border-l border-border/70 pl-2 text-[10px] text-muted">
+            复权
+            <select aria-label="复权方式" value={adjustment}
+              onChange={event => {
+                const mode = event.target.value as PriceAdjustment
+                setLocalAdjustment(mode)
+                onAdjustmentChange?.(mode)
+              }}
+              className="h-5 rounded border border-border bg-base px-1 text-[10px] text-secondary outline-none">
+              <option value="none">不复权</option>
+              <option value="forward">前复权</option>
+              <option value="backward">后复权</option>
+            </select>
+          </label>
           {/* 两个标注开关统一右对齐 */}
           <div className="ml-auto flex items-center gap-1.5">
             {showMarkerToggle && showLimitMarkers && (
@@ -267,7 +287,7 @@ export function StockDailyKChart({
         </div>
       )}
       {kline.isLoading && <div className="text-sm text-muted py-4">加载中…</div>}
-      {kline.isError && <div className="text-sm text-danger py-2">日K加载失败</div>}
+      {kline.isError && <div className="text-sm text-danger py-2">日K加载失败：{kline.error.message}</div>}
       {!kline.isLoading && !kline.isError && (kline.data?.rows?.length ?? 0) > 0 && rows.length === 0 && (
         <div className="text-sm text-danger py-2">数据格式异常，请刷新页面</div>
       )}
@@ -276,7 +296,7 @@ export function StockDailyKChart({
           data={rows}
           markers={allMarkers}
           ranges={ranges}
-          priceLines={priceLines}
+          priceLines={adjustment === 'none' ? priceLines : undefined}
           height={chartHeight - 22}
           showMA={showMA}
           showInfoBar={showInfoBar}
@@ -285,7 +305,7 @@ export function StockDailyKChart({
           symbol={symbol}
           linkedPrice={linkedPrice}
           onDateClick={onDateClick}
-          onPriceDoubleClick={onPriceDoubleClick}
+          onPriceDoubleClick={adjustment === 'none' ? onPriceDoubleClick : undefined}
           visibleBars={visibleBars}
           activeIndicators={activeIndicators}
           volumeCompare={volumeCompare}

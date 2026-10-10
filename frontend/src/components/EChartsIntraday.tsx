@@ -17,6 +17,7 @@ const THEME = {
 }
 
 interface Props {
+  adjustment?: 'none' | 'forward' | 'backward'
   data: MinuteKlineRow[]
   height?: number
   prevClose?: number
@@ -417,6 +418,7 @@ export function EChartsIntraday({
   priceLines,
   showLimitLines = true,
   showAvgLine = true,
+  adjustment = 'forward',
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<ECharts | null>(null)
@@ -597,7 +599,7 @@ export function EChartsIntraday({
           {ohlc && (
             <>
               {date && <span className="text-muted">{date}</span>}
-              <span className="text-muted">{hovered ? `${formatMinuteTime(hovered.datetime)} 分钟` : daily ? '日K（前复权）' : '分时汇总'}</span>
+              <span className="text-muted">{hovered ? `${formatMinuteTime(hovered.datetime)} 分钟` : daily ? `日K（${{ none: '不复权', forward: '前复权', backward: '后复权' }[adjustment]}）` : '分时汇总'}</span>
               <span className="text-muted">开</span>
               <span style={{ color: priceClr }}>{ohlc.open != null ? ohlc.open.toFixed(2) : '—'}</span>
               <span className="text-muted">高</span>

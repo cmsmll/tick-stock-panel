@@ -152,8 +152,7 @@ class FuyaoClient:
     ) -> list[dict]:
         """单标的日K(interval=1d 固定)。单次窗口 ≤10 年, 超出由调用方分片。
 
-        adjust 必须显式传 "none" 取原始价 — 服务端默认是 forward(前复权),
-        官方前复权序列事件间存在逐日漂移, 项目内禁止使用。
+        同步显式传 none；看板可传 forward/backward 直接使用上游复权价。
         返回 data.item 原始行: {date_ms, open_price, high_price, low_price,
         close_price, volume(股), turnover(元)}。
         """

@@ -154,6 +154,7 @@ async function opDaily(sdk, job) {
   )
   symbols.forEach((sym, i) => {
     const r = rows[i]
+    if (job.strict && r?.__error) throw new Error(r.__error)
     out[sym] = Array.isArray(r) ? r : []
   })
   return out
@@ -185,7 +186,7 @@ async function opAdj(sdk, job) {
 async function opMinute(sdk, job) {
   const { symbols = [], period = 5, start, end, concurrency = 6 } = job
   const out = {}
-  await mapPool(symbols, concurrency, async (sym) => {
+  const results = await mapPool(symbols, concurrency, async (sym) => {
     const opts = { period: String(period) }
     if (start) opts.startDate = start
     if (end) opts.endDate = end
@@ -193,6 +194,10 @@ async function opMinute(sdk, job) {
     out[sym] = Array.isArray(bars) ? bars : []
     return out[sym]
   })
+  if (job.strict) {
+    const failed = results.find(r => r?.__error)
+    if (failed) throw new Error(failed.__error)
+  }
   return out
 }
 
@@ -262,7 +267,9 @@ async function main() {
       process.stdout.write(JSON.stringify({ ok: true, op: 'ping', version: StockSDK.version || 'ok' }))
       return
     }
-    const sdk = new StockSDK({ retry: { maxRetries: 3, baseDelay: 400 } })
+    // 看板要求服务端复权，关闭可能本地换算或不支持复权的备用源。
+    const sdk = new StockSDK({ retry: { maxRetries: 3, baseDelay: 400 },
+      ...(job.strict ? { klineFallback: false } : {}) })
     let rows
     switch (op) {
       case 'daily':

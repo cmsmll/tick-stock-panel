@@ -93,6 +93,38 @@ class TickFlowProvider:
         raw = tf.klines.ex_factors(symbols, **kwargs)
         return normalize_adj_factors(raw, source=self.name)
 
+    def get_chart_daily(self, symbol, start_time, end_time, asset_type, adjust):
+        from app.services.kline_sync import (
+            _compact_klines_to_df,
+            _datetime_to_ms,
+            _sdk_call_with_deadline,
+            _timestamp_to_beijing_datetime,
+        )
+        raw = _sdk_call_with_deadline(lambda: get_client().klines.get(
+            symbol, period="1d", adjust=adjust, count=10000,
+            start_time=_datetime_to_ms(start_time), end_time=_datetime_to_ms(end_time),
+            as_dataframe=False,
+        ))
+        df = _compact_klines_to_df(raw, default_symbol=symbol)
+        if df.is_empty():
+            return df
+        df = df.with_columns(_timestamp_to_beijing_datetime(pl.col("timestamp")).alias("datetime"))
+        return normalize_daily(df, default_symbol=symbol, source=self.name)
+
+    def get_chart_minute(self, symbol, start_time, end_time, asset_type, adjust):
+        from app.services.kline_sync import (
+            _compact_klines_to_df,
+            _datetime_to_ms,
+            _normalize_minute,
+            _sdk_call_with_deadline,
+        )
+        raw = _sdk_call_with_deadline(lambda: get_client().klines.get(
+            symbol, period="1m", adjust=adjust, count=10000,
+            start_time=_datetime_to_ms(start_time), end_time=_datetime_to_ms(end_time),
+            as_dataframe=False,
+        ))
+        return _normalize_minute(_compact_klines_to_df(raw, default_symbol=symbol), default_symbol=symbol)
+
     def get_minute(
         self,
         symbols: list[str],

@@ -20,7 +20,7 @@
   - 扶摇 volume 单位为股, 本项目日K/实时契约均为手 → 统一 floor(股/100)。
   - turnover 单位元, 与内部一致, 直接透传。
   - 日K取数 adjust=none 锁定: 官方 forward 序列事件间有逐日漂移(2026-08 实测),
-    项目内前复权一律由 indicators.pipeline 用本地因子计算。
+    同步流水线沿用本地因子；看板 get_chart_daily 显式使用上游复权口径。
   - ex_factor 为单事件比值(非累积), 累积链由 pipeline._apply_adj_factor 构建。
 """
 
@@ -476,6 +476,18 @@ class FuyaoProvider:
             if not df.is_empty()
         ]
         return pl.concat(chunks, how="diagonal_relaxed") if chunks else pl.DataFrame()
+
+    def get_chart_daily(self, symbol, start_time, end_time, asset_type, adjust):
+        if asset_type != "stock":
+            raise NotImplementedError("扶摇看板行情目前仅支持 A 股")
+        bars = []
+        start, end = _ms_of_date(start_time.date()), _ms_of_date(end_time.date())
+        while start <= end:
+            chunk_end = min(end, start + _HIST_MAX_SPAN_MS - 1)
+            # 看板不使用原始 dump，也不吞掉分片异常后返回残缺行情。
+            bars.extend(self._get_client().historical_kline(symbol, start, chunk_end, adjust=adjust))
+            start = chunk_end + 1
+        return normalize_daily(_kline_rows(symbol, bars), source=self.name)
 
     def iter_daily(
         self,

@@ -1,13 +1,14 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Loader2 } from 'lucide-react'
-import { api, type MinuteKlineRow } from '@/lib/api'
+import { api, type MinuteKlineRow, type PriceAdjustment } from '@/lib/api'
 import { QK } from '@/lib/queryKeys'
 import { klineMinuteQueryOptions, minuteRefetchInterval } from '@/lib/kline'
 import { EChartsIntraday } from '@/components/EChartsIntraday'
-import type { DailySummary } from '@/lib/intraday-chart'
+import { type DailySummary } from '@/lib/intraday-chart'
 
 interface Props {
+  adjustment?: PriceAdjustment
   symbol: string
   date: string | null
   height?: number
@@ -34,6 +35,7 @@ export function StockIntradayChart({
   currentPrice,
   priceLines,
   refetchIntervalMs,
+  adjustment,
 }: Props) {
   const qc = useQueryClient()
   const [minuteDismissed, setMinuteDismissed] = useState(false)
@@ -41,7 +43,7 @@ export function StockIntradayChart({
   const minute = useQuery({
     // 轮询上下文 (个股详情) 传 live: 当日盘中后端直接实时拉取最新K,
     // 避免读到分钟增量落盘的上一轮本地分区; 历史日期后端自行忽略 live。
-    ...klineMinuteQueryOptions(symbol, date ?? undefined, refetchIntervalMs != null),
+    ...klineMinuteQueryOptions(symbol, date ?? undefined, refetchIntervalMs != null, adjustment),
     enabled: !!symbol && !!date,
     refetchInterval: minuteRefetchInterval(refetchIntervalMs),
   })
@@ -55,7 +57,8 @@ export function StockIntradayChart({
     },
   })
 
-  const minuteRows: MinuteKlineRow[] = useMemo(() => minute.data?.rows ?? [], [minute.data?.rows])
+  const minuteRows: MinuteKlineRow[] = minute.data?.rows ?? []
+  const priceLimit = minute.data?.price_limit
   // source=none 表示本地无数据且 TickFlow 也拉不到 (停牌/复牌延迟/非交易日)
   // 此时不弹"是否获取"询问窗, 只做静态提示, 避免误导用户去拉明知拉不到的数据
   const sourceIsNone = minute.data?.source === 'none'
@@ -65,19 +68,28 @@ export function StockIntradayChart({
   useEffect(() => {
     setMinuteDismissed(false)
     onPriceHover?.(null)
-  }, [date, onPriceHover])
+  }, [date, adjustment, onPriceHover])
 
   if (!symbol || !date) return null
 
   return (
     <div className={className} style={{ height, flexShrink: 0 }}>
       {minute.isLoading && <div className="text-xs text-muted py-2">分时加载中…</div>}
-      {!minute.isLoading && minuteRows.length === 0 && (
+      {minute.isError && <div className="flex flex-col items-center justify-center h-full gap-3 text-xs text-muted">
+        <span>{minute.error instanceof Error ? minute.error.message : '分时行情获取失败'}</span>
+        <button onClick={() => minute.refetch()} className="text-accent">重试</button>
+      </div>}
+      {!minute.isLoading && !minute.isError && minuteRows.length === 0 && (
         <>
           {fetchMinute.isPending ? (
             <div className="flex items-center justify-center h-full gap-2 text-xs text-accent">
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
               <span>正在获取分钟K数据…</span>
+            </div>
+          ) : adjustment != null ? (
+            <div className="flex flex-col items-center justify-center h-full gap-3 text-xs text-muted">
+              <span>该日暂无分钟数据（数据源未提供）</span>
+              <button onClick={() => minute.refetch()} className="text-accent">重新获取</button>
             </div>
           ) : isIndex ? (
             // 指数: 分钟K仅支持实时读取, 无落库获取入口
@@ -126,12 +138,14 @@ export function StockIntradayChart({
       )}
       {minuteRows.length > 0 && (
         <EChartsIntraday
+          adjustment={adjustment}
+          showAvgLine={adjustment == null || adjustment === 'none'}
           data={minuteRows}
           height={height}
-          prevClose={minute.data?.prev_close ?? prevClose}
-          dailySummary={dailySummary}
+          prevClose={adjustment != null ? minute.data?.prev_close ?? undefined : minute.data?.prev_close ?? prevClose}
+          dailySummary={adjustment != null ? minute.data?.daily_summary ?? undefined : dailySummary}
           date={date}
-          priceLimit={minute.data?.price_limit ?? undefined}
+          priceLimit={priceLimit ?? undefined}
           onPriceHover={onPriceHover}
           onPriceDoubleClick={onPriceDoubleClick}
           currentPrice={currentPrice}

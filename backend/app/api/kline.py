@@ -9,7 +9,7 @@ from datetime import date, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 from functools import lru_cache
-from typing import Optional
+from typing import Literal, Optional
 
 from fastapi import APIRouter, HTTPException, Query, Request, Response
 
@@ -393,6 +393,7 @@ def get_daily(
     start_date: Optional[str] = Query(None, description="起始日期 YYYY-MM-DD, 优先于 days"),
     end_date: Optional[str] = Query(None, description="截止日期 YYYY-MM-DD, 默认今天"),
     ext_columns: Optional[str] = Query(None, description="逗号分隔的 ext 列: config_id.field_name"),
+    adjust: Literal["none", "forward", "backward"] | None = None,
 ):
     """读取本地 enriched 表中某只股票的日 K。
 
@@ -400,6 +401,7 @@ def get_daily(
     - Free 用户: 若 enriched 表里没有该股票, 实时拉取 + 本地算 enriched 返回
     - ext_columns: 可选，动态 LEFT JOIN 扩展数据表，结果平铺到 stock_info.ext 下
       (key 为 "{config_id}__{field_name}")，供日K信息条等场景展示自定义字段
+    - adjust: 指定时直接获取数据源对应口径行情；省略时保持现有仓库接口。
     """
     import polars as pl
 
@@ -415,6 +417,29 @@ def get_daily(
     asset_type = repo.resolve_asset_type(symbol)
     stock_info = _get_stock_info(repo, symbol) if asset_type == "stock" else _get_asset_info(repo, symbol, asset_type)
     stock_name = stock_info.get("name")
+
+    if adjust is not None:
+        from app.services.kline_adjustment import daily_rows
+        if start > end:
+            raise HTTPException(422, "起始日期不能晚于结束日期")
+        try:
+            rows, provider = daily_rows(symbol, start, end, asset_type, adjust)
+        except NotImplementedError as exc:
+            raise HTTPException(409, str(exc)) from exc
+        except Exception as exc:
+            raise HTTPException(502, "数据源行情获取失败，请稍后重试或检查数据源配置") from exc
+        # 事实/信号只作附加元数据，不允许本地价格或指标覆盖上游结果。
+        if hasattr(repo, "get_daily_asset"):
+            facts = repo.get_daily_asset(asset_type, symbol, start, end)
+            by_date = {str(r["date"])[:10]: r for r in facts.to_dicts()}
+            for row in rows:
+                fact = by_date.get(str(row["date"])[:10], {})
+                row.update({k: v for k, v in fact.items()
+                            if k.startswith(("signal_", "raw_")) or k == "turnover_rate"})
+        resp = {"symbol": symbol, "name": stock_name, "stock_info": stock_info,
+                "rows": rows, "source": "live", "provider": provider, "adjust": adjust}
+        return _gzip_payload(request, _attach_ext(resp, repo, symbol, ext_columns),
+                             pref_key="daily_batch_compress")
 
     # 从 enriched 表读取 (已含前复权 OHLCV + 技术指标 + 信号); ETF/指数走独立存储
     df = repo.get_daily_asset(asset_type, symbol, start, end)
@@ -1009,6 +1034,7 @@ def get_minute(
     symbol: str = Query(..., description="标的代码"),
     trade_date: date | None = Query(None, alias="date", description="交易日期, 默认最新"),
     live: bool = Query(False, description="当日盘中跳过本地优先, 直接实时拉取(个股详情分时轮询用)"),
+    adjust: Literal["none", "forward", "backward"] | None = None,
 ):
     """读取某只股票某天的分钟 K 线。
 
@@ -1020,6 +1046,17 @@ def get_minute(
       详情分时图停在上一增量轮, 与行情列表的节奏脱节
     """
     repo = request.app.state.repo
+    if adjust is not None:
+        from app.services.kline_adjustment import minute_rows
+        if trade_date is None:
+            raise HTTPException(422, "指定复权口径时需要交易日期")
+        try:
+            result = minute_rows(symbol, trade_date, repo.resolve_asset_type(symbol), adjust)
+        except NotImplementedError as exc:
+            raise HTTPException(409, str(exc)) from exc
+        except Exception as exc:
+            raise HTTPException(502, "数据源分时行情获取失败，请稍后重试或检查数据源配置") from exc
+        return _gzip_payload(request, {"symbol": symbol, **result}, pref_key="minute_batch_compress")
     capset = request.app.state.capabilities
     raw_basis = minute_adjust.minute_basis_is_raw(repo.store.data_dir)
     asset_type = repo.resolve_asset_type(symbol)

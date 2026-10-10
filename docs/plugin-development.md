@@ -353,3 +353,26 @@ uv run --extra dev python -m ruff check app/plugins/<your_plugin>/ tests/test_<y
 `{provider, data}`（事件按日期降序），无能力为503，上游异常为502。
 打开分红标签页时按股查询，前端以股票、提供方和能力配置版本隔离五分钟缓存；
 用户可手动刷新。不修改财务报表、除权因子落盘与相关缓存，不参加全部财务同步。
+
+### 看板直接复权行情（可选协议）
+
+Provider 可实现 `app.data_providers.base.ChartPriceProvider` 的
+`get_chart_daily(symbol, start_time, end_time, asset_type, adjust)` 与
+`get_chart_minute(...)`，分别随现有 daily/minute 能力路由，不新增独立路由偏好。
+`adjust` 为 `none`、`forward`、`backward`，必须透传到上游行情接口；不允许用本地
+因子、价格比值合成复权行情，也不允许静默返回另一种口径。指数请求统一使用 none。
+日期窗口为北京时间墙钟、含两端；返回标准日线/分钟 Polars schema，成交量为手、
+成交额为真实元金额。仅真实无行情时返回空表；不支持资产或口径抛出
+`NotImplementedError`，网络或上游错误继续抛出，禁止返回部分分片伪装成功。
+旧插件未实现时，看板显示能力不足；原有同步入口与存储契约不变。
+
+`/api/kline/daily` 和 `/api/kline/minute` 显式传 `adjust` 时走此协议；分钟请求还须传
+`date`。不传 adjust 的旧调用继续走原接口。看板只重算 MA/MACD 等技术指标，
+不应用除权因子、不向原始/enriched 仓库写入上游复权数据。
+响应缓存按源、资产、股票、周期、日期范围和口径隔离（最多 64 项、10 秒 TTL），
+失败不缓存。前端日线与分钟查询键均包含复权方式。
+
+当前实现：TickFlow 日线/1 分钟支持三种模式；扶摇仅股票日线；stock-sdk 股票日线
+支持三种模式、1 分钟只支持 none。stock-sdk 看板请求关闭备用源，以免备用源内部
+计算复权或返回不支持复权的行情。复权模式下不展示按真实成交额计算的未复权均价线，
+也不换算价格提醒线/双击提醒价格；这些交互保留在不复权模式。

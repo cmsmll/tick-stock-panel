@@ -271,6 +271,8 @@ export interface PriceLimitInfo {
   source: 'rule' | 'instrument'
 }
 
+export type PriceAdjustment = 'none' | 'forward' | 'backward'
+
 export interface KlineRow {
   /** 未复权价格，股息率等金额计算专用；缺失时不得使用复权 close 替代。 */
   raw_close?: number | null
@@ -2603,12 +2605,13 @@ export const api = {
   redetectCapabilities: () =>
     request<CapabilitiesResponse>('/api/capabilities/redetect', { method: 'POST' }),
 
-  klineDaily: (symbol: string, days = 120, dateRange?: { start: string; end: string }, extColumns?: string) =>
+  klineDaily: (symbol: string, days = 120, dateRange?: { start: string; end: string }, extColumns?: string, adjust?: PriceAdjustment) =>
     request<KlineDailyResponse>(
       (dateRange
         ? `/api/kline/daily?symbol=${encodeURIComponent(symbol)}&start_date=${dateRange.start}&end_date=${dateRange.end}`
         : `/api/kline/daily?symbol=${encodeURIComponent(symbol)}&days=${days}`)
-      + (extColumns ? `&ext_columns=${encodeURIComponent(extColumns)}` : ''),
+      + (extColumns ? `&ext_columns=${encodeURIComponent(extColumns)}` : '')
+      + (adjust ? `&adjust=${adjust}` : ''),
     ),
   klineDailyLatest: (symbol: string) =>
     request<KlineDailyLatestResponse>(
@@ -2635,8 +2638,9 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(symbols),
     }),
-  klineMinute: (symbol: string, date?: string, live?: boolean) =>
+  klineMinute: (symbol: string, date?: string, live?: boolean, adjust?: PriceAdjustment) =>
     request<{
+      daily_summary?: { date: string; open: number | null; high: number; low: number; close: number } | null
       symbol: string
       name?: string
       stock_info?: { name?: string; total_shares?: number; float_shares?: number }
@@ -2647,7 +2651,7 @@ export const api = {
       price_limit?: PriceLimitInfo | null
       prev_close?: number | null
     }>(
-      `/api/kline/minute?symbol=${encodeURIComponent(symbol)}${date ? `&date=${date}` : ''}${live ? '&live=1' : ''}`,
+      `/api/kline/minute?symbol=${encodeURIComponent(symbol)}${date ? `&date=${date}` : ''}${live ? '&live=1' : ''}${adjust ? `&adjust=${adjust}` : ''}`,
     ),
   klineMinuteRange: (symbol: string, days = 10) =>
     request<{

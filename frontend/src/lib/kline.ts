@@ -7,7 +7,7 @@
  * placeholderData 内置"仅同 symbol 占位"守卫: 改日期范围/扩展字段时旧数据可暂显(不闪),
  * 切股时不透传上一只股票的数据(不误显示)。
  */
-import { api, type KlineDailyLatestResponse, type KlineDailyResponse } from '@/lib/api'
+import { api, type KlineDailyLatestResponse, type KlineDailyResponse, type PriceAdjustment } from '@/lib/api'
 import { QK } from '@/lib/queryKeys'
 
 /** 分时 tab 多日分时默认周期 (StockPanel 预取与弹窗存储回退共用, 避免魔数两处漂移) */
@@ -17,14 +17,15 @@ export function klineDailyQueryOptions(
   symbol: string,
   dateRange: { start: string; end: string },
   extColumns?: string,
+  adjust?: PriceAdjustment,
 ) {
   return {
-    queryKey: QK.kline(symbol, dateRange.start, dateRange.end, extColumns),
-    queryFn: () => api.klineDaily(symbol, undefined, dateRange, extColumns),
+    queryKey: QK.kline(symbol, dateRange.start, dateRange.end, extColumns, adjust),
+    queryFn: () => api.klineDaily(symbol, undefined, dateRange, extColumns, adjust),
     // 工厂无 TData 泛型, 参数用 any 以便 useQuery/prefetchQuery 共用
     placeholderData: (prev: any, prevQuery: any) => {
       const prevKey = prevQuery?.queryKey as readonly unknown[] | undefined
-      return prevKey?.[1] === symbol ? prev : undefined
+      return prevKey?.[1] === symbol && prevKey?.[5] === adjust ? prev : undefined
     },
   }
 }
@@ -63,10 +64,10 @@ export function mergeLatestKlineRow(
  * live 仅当日盘中生效: 传 true 时后端实时拉取最新K, 不被分钟增量落盘(≥60s 一轮)拖慢;
  * 历史日期后端自行忽略 live, 故多日图与预取恒传 true 亦不影响历史读取。
  */
-export function klineMinuteQueryOptions(symbol: string, date?: string, live?: boolean) {
+export function klineMinuteQueryOptions(symbol: string, date?: string, live?: boolean, adjust?: PriceAdjustment) {
   return {
-    queryKey: QK.klineMinute(symbol, date ?? ''),
-    queryFn: () => api.klineMinute(symbol, date ?? undefined, live),
+    queryKey: QK.klineMinute(symbol, date ?? '', adjust),
+    queryFn: () => api.klineMinute(symbol, date ?? undefined, live, adjust),
   }
 }
 
