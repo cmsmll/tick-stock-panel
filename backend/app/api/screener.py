@@ -847,6 +847,10 @@ def limit_ladder(
     if df.is_empty():
         return {"as_of": str(as_of), "tiers": [], "counts": {"up": 0, "down": 0}}
 
+    required_signals = {"signal_limit_up", "signal_limit_down", consec_col, broken_col}
+    if not required_signals.issubset(df.columns):
+        raise HTTPException(status_code=503, detail="涨跌停信号数据未就绪，请刷新行情指标后重试")
+
     # 双方向涨跌停计数(不论当前 direction, 前端始终同时显示)
     count_up_raw = int(df.filter(pl.col("signal_limit_up").fill_null(False)).height) if "signal_limit_up" in df.columns else 0
     count_down_raw = int(df.filter(pl.col("signal_limit_down").fill_null(False)).height) if "signal_limit_down" in df.columns else 0
@@ -857,15 +861,19 @@ def limit_ladder(
     fake_down = 0
     sealed_up_ready = False
     sealed_down_ready = False
+    up_map: dict = {}
+    down_map: dict = {}
     if depth_svc_global:
         up_map = depth_svc_global.get_sealed_map(as_of, is_down=False)
         down_map = depth_svc_global.get_sealed_map(as_of, is_down=True)
         sealed_up_ready = bool(up_map) and depth_svc_global.is_sealed_ready(as_of)
         sealed_down_ready = bool(down_map) and depth_svc_global.is_sealed_ready(as_of)
         if up_map:
-            fake_up = sum(1 for v in up_map.values() if v.get("sealed") is False)
+            up_symbols = set(df.filter(pl.col("signal_limit_up").fill_null(False))["symbol"].to_list())
+            fake_up = sum(1 for symbol in up_symbols if up_map.get(symbol, {}).get("sealed") is False)
         if down_map:
-            fake_down = sum(1 for v in down_map.values() if v.get("sealed") is False)
+            down_symbols = set(df.filter(pl.col("signal_limit_down").fill_null(False))["symbol"].to_list())
+            fake_down = sum(1 for symbol in down_symbols if down_map.get(symbol, {}).get("sealed") is False)
     count_up = count_up_raw - fake_up if sealed_up_ready else count_up_raw
     count_down = count_down_raw - fake_down if sealed_down_ready else count_down_raw
 

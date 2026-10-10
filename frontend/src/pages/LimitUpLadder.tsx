@@ -1804,6 +1804,7 @@ export function LimitUpLadder() {
 
       {/* 梯队列表 */}
       <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
+        {sortedTiers.length === 0 && <EmptyState icon={Flame} title="当前筛选条件下暂无股票" hint="可切换涨停、炸板、断板或调整板块筛选条件" />}
         {sortedTiers.map(t => (
           <TierGroup
             key={t.boards}
