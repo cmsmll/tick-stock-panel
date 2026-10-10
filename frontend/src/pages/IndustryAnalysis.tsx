@@ -25,6 +25,7 @@ import { fmtBigNum, fmtPct, priceColorClass } from '@/lib/format'
 import { cn } from '@/lib/cn'
 import { resolveDimension, type DimensionGroup, type StockRow } from '@/lib/analysis-adapter'
 import { SectorRotationCard } from '@/components/SectorRotationCard'
+import { ConceptHeatmapButton } from '@/custom/concept-heatmap/ConceptHeatmapButton'
 
 const KEYWORDS = ['industry', '行业', 'sector', '申万', '中信']
 const CANDIDATE_FIELDS = ['industry', '行业', 'sector', '申万', '中信', '行业名称', 'industry_name', 'sector_name']
@@ -423,6 +424,7 @@ export function IndustryAnalysis() {
         right={
           <div className="flex items-center gap-1">
             {/* RPS 轮动: 打开行业涨幅轮动矩阵对话框 */}
+            <ConceptHeatmapButton initialLevel={2} rows={[]} loading={false} error={false} onRetry={() => { void marketQuery.refetch() }} />
             <button
               onClick={() => setShowRps(true)}
               className="inline-flex items-center gap-1 rounded-btn border border-amber-400/40 bg-amber-400/15 px-2.5 py-1.5 text-[11px] text-amber-400 font-medium transition-colors hover:bg-amber-400/25 hover:border-amber-400/60"

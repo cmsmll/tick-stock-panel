@@ -25,6 +25,7 @@ import { fmtBigNum, fmtPct, priceColorClass } from '@/lib/format'
 import { cn } from '@/lib/cn'
 import { resolveDimension, type DimensionGroup, type StockRow } from '@/lib/analysis-adapter'
 import { SectorRotationCard } from '@/components/SectorRotationCard'
+import { ConceptHeatmapButton } from '@/custom/concept-heatmap/ConceptHeatmapButton'
 
 const KEYWORDS = ['concept', '概念', 'theme', '题材', '板块']
 const CANDIDATE_FIELDS = ['concept', '概念', 'theme', '题材', '板块', 'concept_name', '概念名称']
@@ -369,6 +370,10 @@ export function ConceptAnalysis() {
         subtitle={`${marketQuery.data?.as_of ?? rowsQuery.data?.date ?? '最新'} · ${stats.length} 个概念 · ${totalSymbols} 只标的`}
         right={
           <div className="flex items-center gap-1">
+            <ConceptHeatmapButton rows={stats} date={marketQuery.data?.as_of ?? rowsQuery.data?.date}
+              loading={rowsQuery.isLoading || marketQuery.isLoading}
+              error={rowsQuery.isError || marketQuery.isError}
+              onRetry={() => { void rowsQuery.refetch(); void marketQuery.refetch() }} />
             {/* RPS 轮动: 打开涨幅轮动矩阵对话框 */}
             <button
               onClick={() => setShowRps(true)}
