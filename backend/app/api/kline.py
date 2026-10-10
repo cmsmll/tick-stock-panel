@@ -559,6 +559,8 @@ def _latest_live_candle(
         "high": raw_high if raw_high and raw_high > 0 else close_price,
         "low": raw_low if raw_low and raw_low > 0 else close_price,
         "close": close_price,
+        # 信息条股息率使用原始价；显式空值避免合并时残留上一轮价格。
+        "raw_close": q.get("raw_close"),
         "volume": q.get("volume"),
         "amount": q.get("amount"),
         "change_pct": q.get("change_pct"),

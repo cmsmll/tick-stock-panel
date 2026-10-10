@@ -4,6 +4,7 @@ import type { KlineRow, FinancialMetricRecord } from '@/lib/api'
 import { fmtPrice, fmtBigNum, fmtVolume } from '@/lib/format'
 import { ListColumnCustomizer } from '@/components/ListColumnCustomizer'
 import { WatchlistAddMenu } from '@/components/WatchlistAddMenu'
+import { DividendYield } from '@/components/financials/DividendYield'
 import { INFO_GROUPS, type ColumnConfig } from '@/lib/stock-info-fields'
 import { buildStockExternalUrl, loadStockExternalTemplate } from '@/lib/stock-external-link'
 
@@ -214,6 +215,16 @@ export function StockInfoBar({
 
   // 渲染单个字段（builtin / ext 通用）
   const renderField = (f: ColumnConfig): ReactNode => {
+    if (f.source.type === 'builtin' && f.source.key === 'dividend_yield') {
+      return (
+        <span key={f.id} className="inline-flex items-center gap-1">
+          <span>{f.label}</span>
+          <span className="text-secondary">
+            <DividendYield symbol={symbol} rawClose={latest.raw_close} date={latest.date} />
+          </span>
+        </span>
+      )
+    }
     if (f.source.type === 'ext') {
       const { configId, fieldName } = f.source
       const val = extData[`${configId}__${fieldName}`]

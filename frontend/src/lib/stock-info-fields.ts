@@ -37,6 +37,7 @@ export const BUILTIN_INFO_FIELDS: ColumnConfig[] = [
   { id: 'builtin:roe', source: { type: 'builtin', key: 'roe' }, label: 'ROE', visible: false, align: 'left' },
   { id: 'builtin:pe_ttm', source: { type: 'builtin', key: 'pe_ttm' }, label: 'PE', visible: false, align: 'left' },
   { id: 'builtin:pb', source: { type: 'builtin', key: 'pb' }, label: 'PB', visible: false, align: 'left' },
+  { id: 'builtin:dividend_yield', source: { type: 'builtin', key: 'dividend_yield' }, label: '股息率', visible: false, align: 'left' },
   { id: 'builtin:gross_margin', source: { type: 'builtin', key: 'gross_margin' }, label: '毛利率', visible: false, align: 'left' },
   { id: 'builtin:net_margin', source: { type: 'builtin', key: 'net_margin' }, label: '净利率', visible: false, align: 'left' },
   { id: 'builtin:debt_ratio', source: { type: 'builtin', key: 'debt_ratio' }, label: '负债率', visible: false, align: 'left' },
@@ -48,7 +49,7 @@ export const INFO_GROUPS: ColumnGroup[] = [
   { id: 'scale', label: '规模', icon: '🏦', keys: ['market_cap', 'float_market_cap'] },
   { id: 'volume', label: '成交', icon: '📊', keys: ['turnover', 'volume', 'amplitude'] },
   { id: 'quote', label: '行情', icon: '📈', keys: ['open', 'high', 'low'] },
-  { id: 'finance', label: '财务', icon: '📋', keys: ['eps', 'bps', 'roe', 'pe_ttm', 'pb', 'gross_margin', 'net_margin', 'debt_ratio', 'revenue_yoy', 'net_income_yoy'] },
+  { id: 'finance', label: '财务', icon: '📋', keys: ['eps', 'bps', 'roe', 'pe_ttm', 'pb', 'dividend_yield', 'gross_margin', 'net_margin', 'debt_ratio', 'revenue_yoy', 'net_income_yoy'] },
 ]
 
 // ===== localStorage 持久化 =====

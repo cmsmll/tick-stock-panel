@@ -1,5 +1,6 @@
 from types import SimpleNamespace
 
+import httpx
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -8,6 +9,57 @@ from app.api.financials import router
 from app.data_providers import custom
 from app.plugins.fuyao.provider import FuyaoProvider
 from app.services import preferences
+
+
+@pytest.mark.parametrize("code", [3002, "3002"])
+def test_fuyao_no_adjustment_events_returns_empty_through_api(monkeypatch, code):
+    from app.plugins.fuyao.client import FuyaoClient
+
+    upstream = FuyaoClient("test")
+    upstream._http.close()
+    upstream._http = httpx.Client(
+        base_url="https://example.test",
+        transport=httpx.MockTransport(lambda request: httpx.Response(200, json={
+            "code": code, "message": "No adjustment events for thscode=001246.SZ", "data": None,
+        })),
+    )
+    provider = FuyaoProvider()
+    monkeypatch.setattr(provider, "_get_client", lambda: upstream)
+    monkeypatch.setattr(preferences, "get_dividend_provider", lambda: "fuyao")
+    monkeypatch.setattr(custom, "provider_has_dataset", lambda *args: True)
+    monkeypatch.setattr(custom, "get_provider", lambda name: provider)
+    app = FastAPI()
+    app.include_router(router)
+    try:
+        result = TestClient(app).get("/api/financials/dividends?symbol=001246.SZ")
+        assert result.status_code == 200
+        assert result.json() == {"provider": "fuyao", "data": []}
+    finally:
+        upstream.close()
+
+
+@pytest.mark.parametrize("code,message", [
+    (3002, "Unknown symbol"),
+    (3002, "No adjustment events for thscode=600000.SH"),
+    (4001, "No adjustment events for thscode=001246.SZ"),
+    (1001, "Invalid API key"),
+])
+def test_fuyao_other_errors_are_not_empty_dividends(code, message):
+    from app.plugins.fuyao.client import FuyaoClient, FuyaoError
+
+    client = FuyaoClient("test")
+    client._http.close()
+    client._http = httpx.Client(
+        base_url="https://example.test",
+        transport=httpx.MockTransport(lambda request: httpx.Response(200, json={
+            "code": code, "message": message, "data": None,
+        })),
+    )
+    try:
+        with pytest.raises(FuyaoError):
+            client.dividend_events("001246.SZ")
+    finally:
+        client.close()
 
 
 def test_dividend_default_and_matrix(monkeypatch):

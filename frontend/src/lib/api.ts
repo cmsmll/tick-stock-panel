@@ -272,6 +272,8 @@ export interface PriceLimitInfo {
 }
 
 export interface KlineRow {
+  /** 未复权价格，股息率等金额计算专用；缺失时不得使用复权 close 替代。 */
+  raw_close?: number | null
   symbol?: string
   date: string
   open: number

@@ -29,6 +29,11 @@ _PAGE_INTERVAL_S = 0.15  # 页间隔, 降低触发限频 (code=4001) 的概率
 class FuyaoError(Exception):
     """扶摇接口错误(配置缺失 / 网络失败 / 信封 code != 0)。"""
 
+    def __init__(self, message: str, *, code: int | str | None = None, upstream_message: str = "") -> None:
+        super().__init__(message)
+        self.code = code
+        self.upstream_message = upstream_message
+
 
 class FuyaoClient:
     """扶摇 REST 客户端 (线程安全: httpx.Client 可并发复用)。"""
@@ -61,7 +66,11 @@ class FuyaoClient:
             raise FuyaoError(f"响应不是 JSON: {path}") from e
         code = payload.get("code")
         if code not in (0, "0", None):
-            raise FuyaoError(f"扶摇接口错误 code={code}: {payload.get('message', '')} ({path})")
+            message = payload.get("message", "")
+            raise FuyaoError(
+                f"扶摇接口错误 code={code}: {message} ({path})",
+                code=code, upstream_message=message,
+            )
         return payload.get("data") or {}
 
     # ---- 快照 ----
@@ -162,7 +171,13 @@ class FuyaoClient:
         return rows if isinstance(rows, list) else []
 
     def dividend_events(self, thscode: str) -> list[dict]:
-        data = self._get("/api/a-share/corporate-actions/adjustment-factors", {"thscode": thscode})
+        try:
+            data = self._get("/api/a-share/corporate-actions/adjustment-factors", {"thscode": thscode})
+        except FuyaoError as exc:
+            # 上游以业务错误表示无事件；仅接受当前标的的明确空结果，其他错误仍抛出。
+            if exc.code in (3002, "3002") and exc.upstream_message == f"No adjustment events for thscode={thscode}":
+                return []
+            raise
         if data.get("thscode", thscode) != thscode:
             raise FuyaoError("分红派息响应标的不一致")
         rows = data.get("item")

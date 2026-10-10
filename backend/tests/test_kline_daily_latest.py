@@ -90,6 +90,7 @@ def test_daily_latest_returns_only_current_memory_row(monkeypatch) -> None:
         "high": 10.8,
         "low": 9.9,
         "close": 10.6,
+        "raw_close": None,
         "volume": 123_456.0,
         "amount": 1_234_560.0,
         "change_pct": None,
@@ -97,6 +98,17 @@ def test_daily_latest_returns_only_current_memory_row(monkeypatch) -> None:
         "is_live": True,
     }
     assert repo.latest_asset_calls == 0
+
+
+def test_daily_latest_preserves_unadjusted_price(monkeypatch) -> None:
+    from app.api import kline as kline_api
+
+    monkeypatch.setattr(kline_api, "cn_today", lambda: date.today())
+    frame = _live_frame().with_columns(pl.lit(12.0).alias("raw_close"))
+    client, _ = _client(frame, date.today())
+    row = client.get("/api/kline/daily/latest", params={"symbol": "600000.SH"}).json()["row"]
+    assert row["close"] == 10.6
+    assert row["raw_close"] == 12.0
 
 
 def test_daily_latest_returns_none_for_stale_cache(monkeypatch) -> None:
